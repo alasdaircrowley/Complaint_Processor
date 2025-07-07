@@ -1,0 +1,162 @@
+{
+  "name": "Customer Complaint Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "schedule",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [100, 300],
+      "webhookId": ""
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/complaints",
+        "method": "GET",
+        "responseFormat": "json"
+      },
+      "id": "http-request",
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [300, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).getTime();\nreturn items.filter(item => {\n  const status = item.json.status;\n  const timestamp = new Date(item.json.timestamp).getTime();\n  return status === 'open' && timestamp > oneHourAgo;\n});"
+      },
+      "id": "filter-code",
+      "name": "Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "value1": "={{ $json[\"category\"] }}",
+              "operation": "equal",
+              "value2": "техническая"
+            },
+            {
+              "value1": "={{ $json[\"category\"] }}",
+              "operation": "equal",
+              "value2": "оплата"
+            }
+          ]
+        }
+      },
+      "id": "category-switch",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ $json.text }}\nCategory: {{$json.category}}\nSentiment: {{$json.sentiment}}",
+        "additionalFields": {}
+      },
+      "id": "send-telegram",
+      "name": "Send a text message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [900, 200],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sheetId": "YOUR_SHEET_ID",
+        "range": "Sheet1!A:D",
+        "valueInputMode": "USER_ENTERED",
+        "options": {
+          "rawData": false
+        },
+        "values": [
+          [
+            "={{ $json.id }}",
+            "={{ $json.text }}",
+            "={{ $json.sentiment }}",
+            "={{ $json.category }}"
+          ]
+        ]
+      },
+      "id": "google-sheets",
+      "name": "Add to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [900, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add to Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "id": "YOUR_WORKFLOW_ID"
+}
